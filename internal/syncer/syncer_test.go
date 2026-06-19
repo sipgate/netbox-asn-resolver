@@ -13,7 +13,7 @@ import (
 func newTestSyncer(t *testing.T, format string) *Syncer {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return New(netbox.NewClient("https://example.com", "token"), cache.New(), metrics.New(), log, format)
+	return New(netbox.NewClient("https://example.com", "token", log), cache.New(), metrics.New(), log, format)
 }
 
 func TestRenderTXT(t *testing.T) {

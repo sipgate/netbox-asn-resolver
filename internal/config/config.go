@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -28,6 +29,9 @@ type Config struct {
 	// Response formatting. Supports placeholders matching Netbox ASN object
 	// fields, e.g. "%{asn} | %{rir.name} | netbox | %{description}".
 	TXTFormat string
+
+	// Logging. LogLevel controls the minimum slog level emitted; defaults to INFO.
+	LogLevel slog.Level
 }
 
 // Load reads configuration from the environment, applies defaults, and
@@ -50,6 +54,12 @@ func Load() (*Config, error) {
 	}
 	c.SyncInterval = interval
 
+	level, err := parseLogLevel(envDefault("LOG_LEVEL", "info"))
+	if err != nil {
+		return nil, err
+	}
+	c.LogLevel = level
+
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
@@ -67,6 +77,16 @@ func (c *Config) validate() error {
 		return fmt.Errorf("SYNC_INTERVAL must be positive")
 	}
 	return nil
+}
+
+// parseLogLevel maps a LOG_LEVEL string (debug/info/warn/error, case-insensitive,
+// also accepting slog offset syntax like "INFO+2") to an slog.Level.
+func parseLogLevel(s string) (slog.Level, error) {
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(strings.TrimSpace(s))); err != nil {
+		return 0, fmt.Errorf("invalid LOG_LEVEL %q: %w", s, err)
+	}
+	return level, nil
 }
 
 // envDefault returns the value of the named env var, or def if it is unset/empty.

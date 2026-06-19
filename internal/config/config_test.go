@@ -1,9 +1,42 @@
 package config
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 )
+
+func TestParseLogLevel(t *testing.T) {
+	cases := map[string]slog.Level{
+		"debug": slog.LevelDebug,
+		"INFO":  slog.LevelInfo,
+		" warn": slog.LevelWarn,
+		"error": slog.LevelError,
+	}
+	for in, want := range cases {
+		got, err := parseLogLevel(in)
+		if err != nil {
+			t.Errorf("parseLogLevel(%q) unexpected error: %v", in, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("parseLogLevel(%q) = %v; want %v", in, got, want)
+		}
+	}
+
+	if _, err := parseLogLevel("chatty"); err == nil {
+		t.Error("expected error for invalid level")
+	}
+}
+
+func TestLoadInvalidLogLevel(t *testing.T) {
+	t.Setenv("NETBOX_URL", "https://netbox.example.com")
+	t.Setenv("NETBOX_TOKEN", "tok")
+	t.Setenv("LOG_LEVEL", "chatty")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for invalid LOG_LEVEL")
+	}
+}
 
 func TestNormalizeZone(t *testing.T) {
 	cases := map[string]string{
@@ -31,7 +64,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("NETBOX_URL", "https://netbox.example.com")
 	t.Setenv("NETBOX_TOKEN", "tok")
 	// Ensure no stray overrides from the environment.
-	for _, k := range []string{"SYNC_INTERVAL", "DNS_LISTEN_ADDR", "DNS_ZONE", "UPSTREAM_DNS", "UPSTREAM_ZONE", "METRICS_LISTEN_ADDR", "NETBOX_TXT_FORMAT"} {
+	for _, k := range []string{"SYNC_INTERVAL", "DNS_LISTEN_ADDR", "DNS_ZONE", "UPSTREAM_DNS", "UPSTREAM_ZONE", "METRICS_LISTEN_ADDR", "NETBOX_TXT_FORMAT", "LOG_LEVEL"} {
 		t.Setenv(k, "")
 	}
 
@@ -50,6 +83,9 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if c.DNSListenAddr != ":53" {
 		t.Errorf("DNSListenAddr = %q; want :53", c.DNSListenAddr)
+	}
+	if c.LogLevel != slog.LevelInfo {
+		t.Errorf("LogLevel = %v; want INFO", c.LogLevel)
 	}
 }
 

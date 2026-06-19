@@ -147,14 +147,23 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 	// Only TXT questions are meaningful here; everything else gets an empty
 	// NOERROR.
 	if len(r.Question) != 1 || r.Question[0].Qtype != dns.TypeTXT {
+		if len(r.Question) == 1 {
+			s.log.Debug("ignoring non-TXT query",
+				"name", r.Question[0].Name,
+				"type", dns.TypeToString[r.Question[0].Qtype],
+				"client", w.RemoteAddr().String())
+		}
 		_ = w.WriteMsg(m)
 		return
 	}
 
 	qname := r.Question[0].Name
+	s.log.Debug("dns query received", "name", qname, "client", w.RemoteAddr().String())
+
 	asn, value, ok := s.parseASN(qname)
 	if !ok {
 		// Malformed name within our zone -> NXDOMAIN.
+		s.log.Debug("unparseable ASN query name, returning NXDOMAIN", "name", qname)
 		m.Rcode = dns.RcodeNameError
 		s.metrics.DNSRequests.WithLabelValues(metrics.StatusError).Inc()
 		_ = w.WriteMsg(m)
@@ -163,6 +172,7 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 
 	// Step A — cache hit.
 	if asnData, ok := s.cache.Get(asn); ok {
+		s.log.Debug("cache hit", "asn", asn, "value", asnData)
 		m.Rcode = dns.RcodeSuccess
 		m.Answer = []dns.RR{newTXT(qname, s.cfg.TTL, asnData)}
 		_ = w.WriteMsg(m)
@@ -172,11 +182,14 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 
 	// Step B — private ASN: never forwarded upstream.
 	if isPrivateASN(value) {
+		s.log.Debug("private ASN not in cache, returning NXDOMAIN without upstream", "asn", asn)
 		m.Rcode = dns.RcodeNameError
 		_ = w.WriteMsg(m)
 		s.metrics.DNSRequests.WithLabelValues(metrics.StatusMissPrivate).Inc()
 		return
 	}
+
+	s.log.Debug("cache miss for public ASN, falling back to upstream", "asn", asn)
 
 	// Step C — public ASN: fall back to the upstream resolver.
 	s.resolveUpstream(w, m, qname, asn)
@@ -185,11 +198,13 @@ func (s *Server) handle(w dns.ResponseWriter, r *dns.Msg) {
 // resolveUpstream queries the configured upstream resolver for the public ASN
 // and forwards any TXT answer under the original query name.
 func (s *Server) resolveUpstream(w dns.ResponseWriter, m *dns.Msg, qname, asn string) {
+	upstreamName := dns.Fqdn("AS" + asn + "." + s.cfg.UpstreamZone)
 	q := new(dns.Msg)
-	q.SetQuestion(dns.Fqdn("AS"+asn+"."+s.cfg.UpstreamZone), dns.TypeTXT)
+	q.SetQuestion(upstreamName, dns.TypeTXT)
 	q.RecursionDesired = true
 
-	resp, _, err := s.upstream.Exchange(q, s.cfg.UpstreamDNS)
+	s.log.Debug("querying upstream", "asn", asn, "query", upstreamName, "upstream", s.cfg.UpstreamDNS)
+	resp, rtt, err := s.upstream.Exchange(q, s.cfg.UpstreamDNS)
 	if err != nil {
 		s.log.Warn("upstream query failed", "asn", asn, "upstream", s.cfg.UpstreamDNS, "error", err)
 		m.Rcode = dns.RcodeServerFailure
@@ -217,12 +232,14 @@ func (s *Server) resolveUpstream(w dns.ResponseWriter, m *dns.Msg, qname, asn st
 	}
 
 	if len(answers) == 0 {
+		s.log.Debug("upstream returned no TXT answer", "asn", asn, "rcode", dns.RcodeToString[resp.Rcode], "rtt", rtt.String())
 		m.Rcode = dns.RcodeNameError
 		_ = w.WriteMsg(m)
 		s.metrics.DNSRequests.WithLabelValues(metrics.StatusUpstreamMiss).Inc()
 		return
 	}
 
+	s.log.Debug("upstream hit", "asn", asn, "answers", len(answers), "rtt", rtt.String())
 	m.Rcode = dns.RcodeSuccess
 	m.Answer = answers
 	_ = w.WriteMsg(m)

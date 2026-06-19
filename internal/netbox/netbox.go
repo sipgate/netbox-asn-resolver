@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -46,16 +47,22 @@ type Client struct {
 	token      string
 	httpClient *http.Client
 	pageSize   int
+	log        *slog.Logger
 }
 
 // NewClient constructs a Netbox client. baseURL may include or omit a trailing
 // slash; it should be the scheme+host root (e.g. "https://netbox.example.com").
-func NewClient(baseURL, token string) *Client {
+// A nil logger falls back to slog.Default().
+func NewClient(baseURL, token string, log *slog.Logger) *Client {
+	if log == nil {
+		log = slog.Default()
+	}
 	return &Client{
 		baseURL:    strings.TrimRight(baseURL, "/"),
 		token:      token,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		pageSize:   1000,
+		log:        log,
 	}
 }
 
@@ -73,15 +80,21 @@ func (c *Client) FetchASNs(ctx context.Context) ([]ASN, error) {
 	u.RawQuery = q.Encode()
 	next := u.String()
 
+	c.log.Debug("fetching ASNs from netbox", "url", next, "page_size", c.pageSize)
+
 	var all []ASN
+	page := 0
 	for next != "" {
-		page, nextURL, err := c.fetchPage(ctx, next)
+		results, nextURL, err := c.fetchPage(ctx, next)
 		if err != nil {
 			return nil, err
 		}
-		all = append(all, page...)
+		page++
+		c.log.Debug("netbox page fetched", "page", page, "in_page", len(results), "total", len(all)+len(results), "has_next", nextURL != "")
+		all = append(all, results...)
 		next = nextURL
 	}
+	c.log.Debug("netbox fetch complete", "pages", page, "asns", len(all))
 	return all, nil
 }
 
@@ -93,12 +106,14 @@ func (c *Client) fetchPage(ctx context.Context, pageURL string) ([]ASN, string, 
 	req.Header.Set("Authorization", "Token "+c.token)
 	req.Header.Set("Accept", "application/json")
 
+	c.log.Debug("netbox API request", "method", http.MethodGet, "url", pageURL)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("request %s: %w", pageURL, err)
 	}
 	defer resp.Body.Close()
 
+	c.log.Debug("netbox API response", "url", pageURL, "status", resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("netbox returned status %d for %s", resp.StatusCode, pageURL)
 	}

@@ -22,7 +22,10 @@ import (
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// Bootstrap logger at INFO; the level is raised/lowered to the configured
+	// value once config has loaded (LevelVar lets us adjust after construction).
+	levelVar := new(slog.LevelVar)
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: levelVar}))
 	slog.SetDefault(log)
 
 	cfg, err := config.Load()
@@ -30,11 +33,20 @@ func main() {
 		log.Error("configuration error", "error", err)
 		os.Exit(1)
 	}
+	levelVar.Set(cfg.LogLevel)
+	log.Debug("configuration loaded",
+		"log_level", cfg.LogLevel.String(),
+		"netbox_url", cfg.NetboxURL,
+		"dns_listen_addr", cfg.DNSListenAddr,
+		"dns_zone", cfg.DNSZone,
+		"upstream_dns", cfg.UpstreamDNS,
+		"upstream_zone", cfg.UpstreamZone,
+		"sync_interval", cfg.SyncInterval.String())
 
 	// Core dependencies.
 	m := metrics.New()
 	c := cache.New()
-	nbClient := netbox.NewClient(cfg.NetboxURL, cfg.NetboxToken)
+	nbClient := netbox.NewClient(cfg.NetboxURL, cfg.NetboxToken, log)
 	sync := syncer.New(nbClient, c, m, log, cfg.TXTFormat)
 
 	// Mandatory initial sync — fatal on failure (DNS must not serve empty).

@@ -92,6 +92,7 @@ func (s *Syncer) syncOnce(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
+	s.log.Debug("netbox sync starting", "timeout", s.timeout.String())
 	asns, err := s.client.FetchASNs(ctx)
 	if err != nil {
 		s.metrics.NetboxSyncErrors.Inc()
@@ -99,6 +100,7 @@ func (s *Syncer) syncOnce(ctx context.Context) error {
 	}
 
 	newMap := s.buildCache(asns)
+	s.log.Debug("netbox cache built", "fetched", len(asns), "cached", len(newMap))
 
 	s.cache.Store(newMap)
 	s.metrics.CachedASNs.Set(float64(len(newMap)))

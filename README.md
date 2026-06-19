@@ -53,6 +53,7 @@ NETBOX_URL=https://netbox.example.com NETBOX_TOKEN=... ./netbox-asn-resolver
 | `UPSTREAM_DNS`        | `8.8.8.8:53`                                   | upstream for public fallback   |
 | `UPSTREAM_ZONE`       | `asn.cymru.com.`                               | zone queried upstream          |
 | `METRICS_LISTEN_ADDR` | `:2112`                                        | Prometheus `/metrics`          |
+| `LOG_LEVEL`           | `info`                                         | `debug`/`info`/`warn`/`error`  |
 | `NETBOX_TXT_FORMAT`   | `%{asn} \| %{rir.name} \| netbox \| %{created} \| %{description}` | response template |
 
 ### `NETBOX_TXT_FORMAT` placeholders
