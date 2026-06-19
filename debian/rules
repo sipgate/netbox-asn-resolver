@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+# See debhelper(7) (uncomment to enable)
+# output every command that modifies files on the build system.
+export DH_VERBOSE = 1
+
+# Build a reproducible, statically-friendly binary without embedding VCS info.
+export GOFLAGS = -buildvcs=false
+
+# dh_installsystemd is part of the default sequence at compat >= 11, so it
+# auto-installs and enables debian/netbox-asn-resolver.service. No addon needed
+# (the old --with=systemd addon was removed in debhelper 13.4).
+%:
+	dh $@
+
+override_dh_auto_build:
+	go build -trimpath -ldflags=-s -o netbox-asn-resolver .
+
+override_dh_install:
+	install -D -m 0755 netbox-asn-resolver debian/netbox-asn-resolver/usr/bin/netbox-asn-resolver
+	# Ship the env template as the default config. Files under /etc are
+	# registered as conffiles automatically, so local edits survive upgrades.
+	install -D -m 0640 netbox-asn-resolver.env.example debian/netbox-asn-resolver/etc/default/netbox-asn-resolver

@@ -1,0 +1,20 @@
+---
+name: Build and upload artifact
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [trigger-build]
+  push:
+    branches:
+      - main
+
+jobs:
+  pipeline:
+    uses: sipgate/workflows/.github/workflows/pipeline-debian-package-tested.yaml@main
+    with:
+      package-name: netbox-asn-resolver
+      test_image: golang:trixie
+      test_command: go test ./...
+      distributions: '["trixie",]'
+      build-image: golang
+    secrets: inherit

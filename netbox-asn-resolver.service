@@ -1,0 +1,68 @@
+[Unit]
+Description=Netbox ASN DNS proxy
+Documentation=https://github.com/sipgate/netbox-asn-resolver
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+EnvironmentFile=/etc/default/netbox-asn-resolver
+ExecStart=/usr/local/bin/netbox-asn-resolver
+Restart=on-failure
+RestartSec=5s
+
+# --- Identity ---
+# Run under a transient, unprivileged, per-boot system user. Binding to :53
+# is the only privileged action and is granted via the single capability
+# below. If you move the DNS listener to a port >= 1024 (DNS_LISTEN_ADDR),
+# drop both capability lines entirely.
+DynamicUser=yes
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+# --- Privilege & exec hardening ---
+NoNewPrivileges=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+UMask=0077
+
+# --- Filesystem ---
+# The service needs no writable paths and reads no files itself (systemd
+# reads EnvironmentFile before entering the sandbox).
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectProc=invisible
+ProcSubset=pid
+ReadOnlyPaths=/
+InaccessiblePaths=-/boot -/root -/opt
+PrivateMounts=yes
+
+# --- Kernel & host protection ---
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+KeyringMode=private
+
+# --- Network & namespace surface ---
+# AF_INET/AF_INET6 for DNS + the Netbox HTTPS API; AF_NETLINK and AF_UNIX are
+# needed by the Go runtime/resolver (interface enumeration, NSS) — removing
+# them breaks name resolution.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_NETLINK AF_UNIX
+RestrictNamespaces=yes
+
+# --- System call surface ---
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged ~@resources ~@obsolete
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

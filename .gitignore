@@ -1,0 +1,48 @@
+# --- Go ---
+# Compiled binary (matches the module name) and any build output dirs
+/netbox-asn-resolver
+/dist/
+/build/
+# Other platform binaries / shared libraries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+# Test binary, built with `go test -c`
+*.test
+# Output of `go tool cover` and other profiling/coverage artifacts
+*.out
+coverage.*
+*.prof
+# Go workspace files (local, per-developer)
+go.work
+go.work.sum
+# Dependencies, if ever vendored locally (uncomment if you don't commit vendor/)
+# /vendor/
+
+# --- Secrets / local config ---
+# Real env files (e.g. /etc/default/netbox-asn-resolver); keep the example template
+*.env
+.env
+.env.*
+!*.env.example
+!.env.example
+
+# --- Editors / IDEs ---
+# VS Code
+.vscode/
+*.code-workspace
+# JetBrains GoLand / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+
+# --- OS cruft ---
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo

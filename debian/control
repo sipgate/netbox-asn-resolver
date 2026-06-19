@@ -1,0 +1,13 @@
+Source: netbox-asn-resolver
+Section: net
+Priority: optional
+Maintainer: Bear Metal <bearmetal@sipgate.de>
+Build-Depends: golang, debhelper, debhelper (>= 13.3.4) | dh-systemd
+Standards-Version: 3.9.0
+Homepage: https://github.com/sipgate/netbox-asn-resolver
+Vcs-Browser: https://github.com/sipgate/netbox-asn-resolver
+
+Package: netbox-asn-resolver
+Architecture: amd64
+Description: Resolve ASNs to owner/description via DNS with a Netbox backend
+
